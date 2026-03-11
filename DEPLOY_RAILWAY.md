@@ -1,18 +1,17 @@
 # Deployment (Railway)
 
-This project can exceed Render free memory when face restoration is enabled.
-Use Railway with a higher-memory service.
+Use Railway with at least 4 GB RAM for face restoration.
+This repo is configured for Railway Nixpacks (not Docker).
 
 ## Steps
 
-1. Create a new Railway project from this GitHub repository.
-2. Railway will auto-detect `Dockerfile`.
-3. In service settings, set memory to at least 4 GB.
-4. Deploy.
+1. In Railway service settings, ensure Builder is Nixpacks.
+2. Redeploy latest commit.
+3. Set service memory to at least 4 GB.
 
 ## Optional Environment Variables
 
-- `LOW_MEMORY_MODE=0` (default, keeps face restoration enabled)
+- `LOW_MEMORY_MODE=0` (default, face restoration enabled)
 - `MAX_INPUT_DIM=2048`
 
-The app listens on `$PORT` automatically.
+The app start command is defined in `railway.json`.

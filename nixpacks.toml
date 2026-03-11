@@ -1,0 +1,9 @@
+[phases.setup]
+nixPkgs = ["python310", "gcc"]
+
+[phases.install]
+cmds = [
+  "python -m pip install --upgrade 'pip<25' 'setuptools<70' 'wheel<0.43'",
+  "pip install --no-build-isolation basicsr==1.4.2",
+  "pip install -r requirements.txt"
+]
