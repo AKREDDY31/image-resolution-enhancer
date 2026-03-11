@@ -6,5 +6,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.13
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      python -m pip install --upgrade "pip<25" "setuptools<70" "wheel<0.43"
+      pip install --no-build-isolation basicsr==1.4.2
+      pip install -r requirements.txt
     startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
