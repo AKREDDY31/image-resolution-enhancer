@@ -15,8 +15,7 @@ st.set_page_config(page_title="AI Image Restoration", layout="wide")
 st.title("AI Image Restoration Platform")
 st.write("Enhance blurry and low-resolution images using AI")
 
-IS_RENDER = os.getenv("RENDER") == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
-LOW_MEMORY_MODE = os.getenv("LOW_MEMORY_MODE", "1" if IS_RENDER else "0") == "1"
+LOW_MEMORY_MODE = os.getenv("LOW_MEMORY_MODE", "0") == "1"
 MAX_INPUT_DIM = int(os.getenv("MAX_INPUT_DIM", "1024" if LOW_MEMORY_MODE else "2048"))
 
 # Keep CPU thread count low on small instances.
@@ -58,23 +57,21 @@ ensure_model(
     "RealESRGAN_x4plus",
 )
 
-# Download face-model assets only when that pipeline is enabled.
-if not LOW_MEMORY_MODE:
-    ensure_model(
-        gfpgan_path,
-        "https://github.com/TencentARC/GFPGAN/releases/download/v1.4/GFPGANv1.4.pth",
-        "GFPGANv1.4",
-    )
-    ensure_model(
-        detector_path,
-        "https://github.com/xinntao/facexlib/releases/download/v0.2.5/detection_Resnet50_Final.pth",
-        "Face detector",
-    )
-    ensure_model(
-        parsing_path,
-        "https://github.com/xinntao/facexlib/releases/download/v0.2.5/parsing_parsenet.pth",
-        "Face parser",
-    )
+ensure_model(
+    gfpgan_path,
+    "https://github.com/TencentARC/GFPGAN/releases/download/v1.4/GFPGANv1.4.pth",
+    "GFPGANv1.4",
+)
+ensure_model(
+    detector_path,
+    "https://github.com/xinntao/facexlib/releases/download/v0.2.5/detection_Resnet50_Final.pth",
+    "Face detector",
+)
+ensure_model(
+    parsing_path,
+    "https://github.com/xinntao/facexlib/releases/download/v0.2.5/parsing_parsenet.pth",
+    "Face parser",
+)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -139,7 +136,11 @@ if uploaded_file:
         st.subheader("Input Image")
         st.image(image, use_container_width=True)
 
-    use_face_restore = (not LOW_MEMORY_MODE) and st.checkbox("Enable face restoration (higher RAM)", value=True)
+    use_face_restore = st.checkbox(
+        "Enable face restoration (higher RAM)",
+        value=True,
+        disabled=LOW_MEMORY_MODE,
+    )
 
     if st.button("Enhance Image"):
         with st.spinner("Enhancing image..."):
