@@ -6,6 +6,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.13
+      - key: LOW_MEMORY_MODE
+        value: "1"
     buildCommand: |
       python -m pip install --upgrade "pip<25" "setuptools<70" "wheel<0.43"
       pip install --no-build-isolation basicsr==1.4.2
