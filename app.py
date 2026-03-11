@@ -20,31 +20,57 @@ st.write("Enhance blurry and low-resolution images using AI")
 # ---------------- CREATE MODEL DIRECTORY ----------------
 
 os.makedirs("models", exist_ok=True)
+os.makedirs("gfpgan/weights", exist_ok=True)
 
 realesrgan_path = "models/RealESRGAN_x4plus.pth"
 gfpgan_path = "models/GFPGANv1.4.pth"
+detector_path = "gfpgan/weights/detection_Resnet50_Final.pth"
+parsing_path = "gfpgan/weights/parsing_parsenet.pth"
 
 
-# ---------------- DOWNLOAD MODELS IF MISSING ----------------
+# ---------------- DOWNLOAD MODELS IF MISSING / INVALID ----------------
 
-if not os.path.exists(realesrgan_path):
+def is_lfs_pointer_or_invalid(path, min_size_bytes=1024 * 1024):
+    if not os.path.exists(path):
+        return True
+    if os.path.getsize(path) >= min_size_bytes:
+        return False
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            header = f.read(200)
+        return "git-lfs.github.com/spec/v1" in header or os.path.getsize(path) < min_size_bytes
+    except OSError:
+        return True
 
-    st.write("Downloading RealESRGAN model...")
 
-    urllib.request.urlretrieve(
-        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-        realesrgan_path
-    )
+def ensure_model(path, url, label):
+    if is_lfs_pointer_or_invalid(path):
+        if os.path.exists(path):
+            os.remove(path)
+        st.write(f"Downloading {label} model...")
+        urllib.request.urlretrieve(url, path)
 
 
-if not os.path.exists(gfpgan_path):
-
-    st.write("Downloading GFPGAN model...")
-
-    urllib.request.urlretrieve(
-        "https://github.com/TencentARC/GFPGAN/releases/download/v1.4/GFPGANv1.4.pth",
-        gfpgan_path
-    )
+ensure_model(
+    realesrgan_path,
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+    "RealESRGAN_x4plus",
+)
+ensure_model(
+    gfpgan_path,
+    "https://github.com/TencentARC/GFPGAN/releases/download/v1.4/GFPGANv1.4.pth",
+    "GFPGANv1.4",
+)
+ensure_model(
+    detector_path,
+    "https://github.com/xinntao/facexlib/releases/download/v0.2.5/detection_Resnet50_Final.pth",
+    "Face detector",
+)
+ensure_model(
+    parsing_path,
+    "https://github.com/xinntao/facexlib/releases/download/v0.2.5/parsing_parsenet.pth",
+    "Face parser",
+)
 
 
 # ---------------- DEVICE ----------------
