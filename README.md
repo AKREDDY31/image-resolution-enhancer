@@ -1,12 +1,15 @@
 ---
-title: Image Enhancer Ai
-emoji: 🏃
-colorFrom: green
-colorTo: gray
-sdk: gradio
-sdk_version: 6.9.0
+title: Image Resolution Enhancer
+colorFrom: blue
+colorTo: indigo
+sdk: streamlit
+sdk_version: 1.41.1
 app_file: app.py
 pinned: false
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+# Image Resolution Enhancer
+
+Upload an image and enhance it using RealESRGAN + GFPGAN.
+
+This app downloads model weights on first run if they are not present.
