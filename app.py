@@ -1,5 +1,6 @@
 import os
 import urllib.request
+from urllib.error import HTTPError, URLError
 
 import cv2
 import numpy as np
@@ -43,12 +44,21 @@ def is_lfs_pointer_or_invalid(path, min_size_bytes=1024 * 1024):
         return True
 
 
-def ensure_model(path, url, label):
+def ensure_model(path, urls, label):
+    if isinstance(urls, str):
+        urls = [urls]
     if is_lfs_pointer_or_invalid(path):
         if os.path.exists(path):
             os.remove(path)
         st.write(f"Downloading {label} model...")
-        urllib.request.urlretrieve(url, path)
+        last_error = None
+        for url in urls:
+            try:
+                urllib.request.urlretrieve(url, path)
+                return
+            except (HTTPError, URLError, TimeoutError, OSError) as err:
+                last_error = err
+        raise RuntimeError(f"Failed to download {label} from known mirrors. Last error: {last_error}")
 
 
 ensure_model(
@@ -59,17 +69,27 @@ ensure_model(
 
 ensure_model(
     gfpgan_path,
-    "https://github.com/TencentARC/GFPGAN/releases/download/v1.4/GFPGANv1.4.pth",
+    [
+        "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth",
+        "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.8/GFPGANv1.4.pth",
+        "https://github.com/TencentARC/GFPGAN/releases/download/v1.4.0/GFPGANv1.4.pth",
+    ],
     "GFPGANv1.4",
 )
 ensure_model(
     detector_path,
-    "https://github.com/xinntao/facexlib/releases/download/v0.2.5/detection_Resnet50_Final.pth",
+    [
+        "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth",
+        "https://github.com/xinntao/facexlib/releases/download/v0.2.5/detection_Resnet50_Final.pth",
+    ],
     "Face detector",
 )
 ensure_model(
     parsing_path,
-    "https://github.com/xinntao/facexlib/releases/download/v0.2.5/parsing_parsenet.pth",
+    [
+        "https://github.com/xinntao/facexlib/releases/download/v0.2.2/parsing_parsenet.pth",
+        "https://github.com/xinntao/facexlib/releases/download/v0.2.5/parsing_parsenet.pth",
+    ],
     "Face parser",
 )
 
