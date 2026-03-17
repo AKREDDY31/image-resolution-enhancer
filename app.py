@@ -19,26 +19,20 @@ DEEP_IMAGE_API_KEY = os.getenv("DEEP_IMAGE_API_KEY", "").strip()
 UPSCALE_OPTIONS = {
     "Balanced": {
         "enhancements": ["denoise", "deblur", "light"],
-        "face_enhance": False,
+        "description": "General cleanup for soft, compressed, or slightly noisy images.",
     },
     "Portrait": {
-        "enhancements": ["denoise", "deblur", "light", "face_enhance"],
-        "face_enhance": True,
+        "enhancements": ["denoise", "deblur", "light"],
+        "description": "A safe choice for portraits and selfies with natural detail recovery.",
     },
     "Clean": {
-        "enhancements": ["clean", "light"],
-        "face_enhance": False,
+        "enhancements": ["clean", "denoise", "light"],
+        "description": "Prioritizes artifact cleanup for compressed web images.",
     },
     "Sharp": {
         "enhancements": ["deblur", "light"],
-        "face_enhance": False,
+        "description": "Adds extra crispness for images that already look fairly clean.",
     },
-}
-DECOMPRESS_OPTIONS = {
-    "Off": "off",
-    "Auto": "auto",
-    "Moderate": "moderate",
-    "Strong": "strong",
 }
 
 PAGE_TEMPLATE = """
@@ -151,13 +145,6 @@ PAGE_TEMPLATE = """
       align-items: center;
       gap: 12px;
     }
-    .checkbox {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
     button {
       width: 100%;
       border: 0;
@@ -182,6 +169,13 @@ PAGE_TEMPLATE = """
       background: var(--accent-soft);
       color: var(--accent-dark);
       border: 1px solid rgba(31, 108, 92, 0.12);
+    }
+    .profile-note {
+      margin-top: -8px;
+      margin-bottom: 18px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
     }
     .error {
       background: #fde6e0;
@@ -281,24 +275,13 @@ PAGE_TEMPLATE = """
             {% endfor %}
           </select>
         </div>
+        <div class="profile-note">{{ selected_profile_description }}</div>
         <div class="field">
           <div class="inline">
-            <label for="scale_percent">Scale</label>
-            <strong class="range-value">{{ form_values.scale_percent }}%</strong>
+            <label for="target_width">Output width</label>
+            <strong class="range-value">{{ form_values.target_width }}px</strong>
           </div>
-          <input id="scale_percent" type="range" name="scale_percent" min="100" max="400" step="50" value="{{ form_values.scale_percent }}" oninput="this.previousElementSibling.querySelector('strong').textContent = this.value + '%'">
-        </div>
-        <div class="field">
-          <label for="decompress_mode">Compression cleanup</label>
-          <select id="decompress_mode" name="decompress_mode">
-            {% for label, value in decompress_options.items() %}
-              <option value="{{ value }}" {% if form_values.decompress_mode == value %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field checkbox">
-          <input id="polish_enabled" type="checkbox" name="polish_enabled" value="1" {% if form_values.polish_enabled %}checked{% endif %}>
-          <label for="polish_enabled" style="margin: 0;">Refine fine details</label>
+          <input id="target_width" type="range" name="target_width" min="1200" max="4000" step="200" value="{{ form_values.target_width }}" oninput="this.previousElementSibling.querySelector('strong').textContent = this.value + 'px'">
         </div>
         <button type="submit">Enhance Image</button>
       </form>
@@ -339,26 +322,14 @@ PAGE_TEMPLATE = """
 
 def build_deep_image_payload(
     profile_name: str,
-    scale_percent: int,
-    decompress_mode: str,
-    polish_enabled: bool,
+    target_width: int,
 ) -> dict:
     profile = UPSCALE_OPTIONS[profile_name]
     enhancements = list(profile["enhancements"])
-    if polish_enabled and "deblur" not in enhancements:
-        enhancements.append("deblur")
-
-    payload = {
-        "width": f"{scale_percent}%",
-        "height": f"{scale_percent}%",
+    return {
+        "width": target_width,
         "enhancements": enhancements,
-        "output_format": "png",
     }
-
-    if decompress_mode != "off":
-        payload["enhancements"] = ["clean"] + [item for item in payload["enhancements"] if item != "clean"]
-
-    return payload
 
 
 def poll_deep_image_result(job_id: str) -> str:
@@ -380,32 +351,26 @@ def restore_image_with_deep_image(
     image_bytes: bytes,
     file_name: str,
     profile_name: str,
-    scale_percent: int,
-    decompress_mode: str,
-    polish_enabled: bool,
+    target_width: int,
 ) -> bytes:
     if not DEEP_IMAGE_API_KEY:
         raise RuntimeError("DEEP_IMAGE_API_KEY is missing. Set it in your environment.")
 
     parameters = build_deep_image_payload(
         profile_name=profile_name,
-        scale_percent=scale_percent,
-        decompress_mode=decompress_mode,
-        polish_enabled=polish_enabled,
+        target_width=target_width,
     )
-    headers = {"x-api-key": DEEP_IMAGE_API_KEY}
-    files = {
-        "image": (file_name, image_bytes),
+    headers = {
+        "x-api-key": DEEP_IMAGE_API_KEY,
+        "content-type": "application/json",
     }
-    data = {
-        "parameters": json.dumps(parameters),
-    }
+    payload = dict(parameters)
+    payload["url"] = f"data:image/png;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
 
     response = requests.post(
         DEEP_IMAGE_API_URL,
         headers=headers,
-        files=files,
-        data=data,
+        data=json.dumps(payload),
         timeout=120,
     )
     response.raise_for_status()
@@ -431,9 +396,7 @@ def image_bytes_to_base64(image_bytes: bytes) -> str:
 def render_page(error: str = "", input_image: str = "", result_image: str = "", form_values: dict | None = None):
     values = {
         "upscale_mode": "Balanced",
-        "scale_percent": 200,
-        "decompress_mode": DECOMPRESS_OPTIONS["Auto"],
-        "polish_enabled": True,
+        "target_width": 2000,
     }
     if form_values:
         values.update(form_values)
@@ -445,8 +408,8 @@ def render_page(error: str = "", input_image: str = "", result_image: str = "", 
         input_image=input_image,
         result_image=result_image,
         upscale_options=UPSCALE_OPTIONS,
-        decompress_options=DECOMPRESS_OPTIONS,
         form_values=values,
+        selected_profile_description=UPSCALE_OPTIONS[values["upscale_mode"]]["description"],
     )
 
 
@@ -460,14 +423,10 @@ def index():
         return render_page(error="Please choose an image file before submitting.")
 
     upscale_mode = request.form.get("upscale_mode", "Balanced")
-    decompress_mode = request.form.get("decompress_mode", DECOMPRESS_OPTIONS["Auto"])
-    scale_percent = int(request.form.get("scale_percent", "200"))
-    polish_enabled = request.form.get("polish_enabled") == "1"
+    target_width = int(request.form.get("target_width", "2000"))
     form_values = {
         "upscale_mode": upscale_mode,
-        "scale_percent": scale_percent,
-        "decompress_mode": decompress_mode,
-        "polish_enabled": polish_enabled,
+        "target_width": target_width,
     }
 
     input_bytes = uploaded_file.read()
@@ -478,9 +437,7 @@ def index():
             image_bytes=input_bytes,
             file_name=uploaded_file.filename,
             profile_name=upscale_mode,
-            scale_percent=scale_percent,
-            decompress_mode=decompress_mode,
-            polish_enabled=polish_enabled,
+            target_width=target_width,
         )
     except requests.HTTPError as exc:
         details = exc.response.text if exc.response is not None else str(exc)
