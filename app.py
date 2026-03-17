@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import os
+import time
 
 import requests
 from dotenv import load_dotenv
@@ -12,14 +13,26 @@ load_dotenv()
 
 app = Flask(__name__)
 
-CLAID_API_URL = "https://api.claid.ai/v1/image/edit/upload"
-CLAID_API_KEY = os.getenv("CLAID_API_KEY", "").strip()
+DEEP_IMAGE_API_URL = "https://deep-image.ai/rest_api/process_result"
+DEEP_IMAGE_RESULT_URL = "https://deep-image.ai/rest_api/result"
+DEEP_IMAGE_API_KEY = os.getenv("DEEP_IMAGE_API_KEY", "").strip()
 UPSCALE_OPTIONS = {
-    "Faces": "faces",
-    "Photo": "photo",
-    "Smart Enhance": "smart_enhance",
-    "Smart Resize": "smart_resize",
-    "Digital Art": "digital_art",
+    "Balanced": {
+        "enhancements": ["denoise", "deblur", "light"],
+        "face_enhance": False,
+    },
+    "Portrait": {
+        "enhancements": ["denoise", "deblur", "light", "face_enhance"],
+        "face_enhance": True,
+    },
+    "Clean": {
+        "enhancements": ["clean", "light"],
+        "face_enhance": False,
+    },
+    "Sharp": {
+        "enhancements": ["deblur", "light"],
+        "face_enhance": False,
+    },
 }
 DECOMPRESS_OPTIONS = {
     "Off": "off",
@@ -263,8 +276,8 @@ PAGE_TEMPLATE = """
         <div class="field">
           <label for="upscale_mode">Enhancement profile</label>
           <select id="upscale_mode" name="upscale_mode">
-            {% for label, value in upscale_options.items() %}
-              <option value="{{ value }}" {% if form_values.upscale_mode == value %}selected{% endif %}>{{ label }}</option>
+            {% for label in upscale_options.keys() %}
+              <option value="{{ label }}" {% if form_values.upscale_mode == label %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -324,80 +337,85 @@ PAGE_TEMPLATE = """
 """
 
 
-def build_claid_payload(
-    upscale_mode: str,
+def build_deep_image_payload(
+    profile_name: str,
     scale_percent: int,
     decompress_mode: str,
     polish_enabled: bool,
 ) -> dict:
-    operations = {
-        "restorations": {
-            "upscale": upscale_mode,
-            "polish": polish_enabled,
-        },
-        "resizing": {
-            "width": f"{scale_percent}%",
-            "height": f"{scale_percent}%",
-        },
+    profile = UPSCALE_OPTIONS[profile_name]
+    enhancements = list(profile["enhancements"])
+    if polish_enabled and "deblur" not in enhancements:
+        enhancements.append("deblur")
+
+    payload = {
+        "width": f"{scale_percent}%",
+        "height": f"{scale_percent}%",
+        "enhancements": enhancements,
+        "output_format": "png",
     }
+
     if decompress_mode != "off":
-        operations["restorations"]["decompress"] = decompress_mode
+        payload["enhancements"] = ["clean"] + [item for item in payload["enhancements"] if item != "clean"]
 
-    return {
-        "operations": operations,
-        "output": {
-            "format": {
-                "type": "png",
-            }
-        },
-    }
+    return payload
 
 
-def extract_output_url(response_json: dict) -> str:
-    data = response_json.get("data", {})
-    output = data.get("output", {})
-    tmp_url = output.get("tmp_url")
-    if tmp_url:
-        return tmp_url
+def poll_deep_image_result(job_id: str) -> str:
+    headers = {"x-api-key": DEEP_IMAGE_API_KEY}
+    for _ in range(20):
+        response = requests.get(f"{DEEP_IMAGE_RESULT_URL}/{job_id}", headers=headers, timeout=60)
+        response.raise_for_status()
+        response_json = response.json()
+        result_url = response_json.get("result_url")
+        if result_url:
+            return result_url
+        if response_json.get("status") == "error":
+            raise RuntimeError(response_json.get("description", "Image processing failed."))
+        time.sleep(2)
+    raise RuntimeError("Image processing timed out while waiting for the result.")
 
-    outputs = data.get("outputs", [])
-    if outputs and isinstance(outputs[0], dict):
-        tmp_url = outputs[0].get("tmp_url")
-        if tmp_url:
-            return tmp_url
 
-    raise RuntimeError("Claid response did not include a downloadable output URL.")
-
-
-def restore_image_with_claid(
+def restore_image_with_deep_image(
     image_bytes: bytes,
     file_name: str,
-    upscale_mode: str,
+    profile_name: str,
     scale_percent: int,
     decompress_mode: str,
     polish_enabled: bool,
 ) -> bytes:
-    if not CLAID_API_KEY:
-        raise RuntimeError("CLAID_API_KEY is missing. Set it in your environment.")
+    if not DEEP_IMAGE_API_KEY:
+        raise RuntimeError("DEEP_IMAGE_API_KEY is missing. Set it in your environment.")
 
-    payload = build_claid_payload(
-        upscale_mode=upscale_mode,
+    parameters = build_deep_image_payload(
+        profile_name=profile_name,
         scale_percent=scale_percent,
         decompress_mode=decompress_mode,
         polish_enabled=polish_enabled,
     )
+    headers = {"x-api-key": DEEP_IMAGE_API_KEY}
     files = {
-        "file": (file_name, image_bytes),
-        "data": (None, json.dumps(payload), "application/json"),
+        "image": (file_name, image_bytes),
     }
-    headers = {
-        "Authorization": f"Bearer {CLAID_API_KEY}",
+    data = {
+        "parameters": json.dumps(parameters),
     }
 
-    response = requests.post(CLAID_API_URL, headers=headers, files=files, timeout=120)
+    response = requests.post(
+        DEEP_IMAGE_API_URL,
+        headers=headers,
+        files=files,
+        data=data,
+        timeout=120,
+    )
     response.raise_for_status()
-
-    output_url = extract_output_url(response.json())
+    response_json = response.json()
+    output_url = response_json.get("result_url")
+    if not output_url:
+        job_id = response_json.get("job")
+        if not job_id:
+            raise RuntimeError("The image service did not return a result URL or job id.")
+        output_url = poll_deep_image_result(job_id)
     output_response = requests.get(output_url, timeout=120)
     output_response.raise_for_status()
     return output_response.content
@@ -412,7 +430,7 @@ def image_bytes_to_base64(image_bytes: bytes) -> str:
 
 def render_page(error: str = "", input_image: str = "", result_image: str = "", form_values: dict | None = None):
     values = {
-        "upscale_mode": UPSCALE_OPTIONS["Faces"],
+        "upscale_mode": "Balanced",
         "scale_percent": 200,
         "decompress_mode": DECOMPRESS_OPTIONS["Auto"],
         "polish_enabled": True,
@@ -422,7 +440,7 @@ def render_page(error: str = "", input_image: str = "", result_image: str = "", 
 
     return render_template_string(
         PAGE_TEMPLATE,
-        api_key_loaded=bool(CLAID_API_KEY),
+        api_key_loaded=bool(DEEP_IMAGE_API_KEY),
         error=error,
         input_image=input_image,
         result_image=result_image,
@@ -441,7 +459,7 @@ def index():
     if uploaded_file is None or not uploaded_file.filename:
         return render_page(error="Please choose an image file before submitting.")
 
-    upscale_mode = request.form.get("upscale_mode", UPSCALE_OPTIONS["Faces"])
+    upscale_mode = request.form.get("upscale_mode", "Balanced")
     decompress_mode = request.form.get("decompress_mode", DECOMPRESS_OPTIONS["Auto"])
     scale_percent = int(request.form.get("scale_percent", "200"))
     polish_enabled = request.form.get("polish_enabled") == "1"
@@ -456,17 +474,17 @@ def index():
     input_base64 = image_bytes_to_base64(input_bytes)
 
     try:
-        result_bytes = restore_image_with_claid(
+        result_bytes = restore_image_with_deep_image(
             image_bytes=input_bytes,
             file_name=uploaded_file.filename,
-            upscale_mode=upscale_mode,
+            profile_name=upscale_mode,
             scale_percent=scale_percent,
             decompress_mode=decompress_mode,
             polish_enabled=polish_enabled,
         )
     except requests.HTTPError as exc:
         details = exc.response.text if exc.response is not None else str(exc)
-        return render_page(error=f"Claid API request failed.\n\n{details}", input_image=input_base64, form_values=form_values)
+        return render_page(error=f"Image processing request failed.\n\n{details}", input_image=input_base64, form_values=form_values)
     except Exception as exc:
         return render_page(error=str(exc), input_image=input_base64, form_values=form_values)
 
