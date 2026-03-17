@@ -16,23 +16,9 @@ app = Flask(__name__)
 DEEP_IMAGE_API_URL = "https://deep-image.ai/rest_api/process_result"
 DEEP_IMAGE_RESULT_URL = "https://deep-image.ai/rest_api/result"
 DEEP_IMAGE_API_KEY = os.getenv("DEEP_IMAGE_API_KEY", "").strip()
-UPSCALE_OPTIONS = {
-    "Balanced": {
-        "enhancements": ["denoise", "deblur", "light"],
-        "description": "General cleanup for soft, compressed, or slightly noisy images.",
-    },
-    "Portrait": {
-        "enhancements": ["denoise", "deblur", "light"],
-        "description": "A safe choice for portraits and selfies with natural detail recovery.",
-    },
-    "Clean": {
-        "enhancements": ["clean", "denoise", "light"],
-        "description": "Prioritizes artifact cleanup for compressed web images.",
-    },
-    "Sharp": {
-        "enhancements": ["deblur", "light"],
-        "description": "Adds extra crispness for images that already look fairly clean.",
-    },
+DEFAULT_PARAMETERS = {
+    "enhancements": ["denoise", "deblur", "light"],
+    "width": "200%",
 }
 
 PAGE_TEMPLATE = """
@@ -98,7 +84,7 @@ PAGE_TEMPLATE = """
     }
     .grid {
       display: grid;
-      grid-template-columns: 370px 1fr;
+      grid-template-columns: 360px 1fr;
       gap: 24px;
       align-items: start;
     }
@@ -120,8 +106,7 @@ PAGE_TEMPLATE = """
     .field {
       margin-bottom: 20px;
     }
-    input[type="file"],
-    select {
+    input[type="file"] {
       width: 100%;
       padding: 13px 14px;
       border: 1px solid rgba(102, 85, 68, 0.18);
@@ -129,21 +114,6 @@ PAGE_TEMPLATE = """
       background: rgba(255,255,255,0.86);
       color: var(--ink);
       font: inherit;
-    }
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--accent);
-    }
-    .range-value {
-      color: var(--accent-dark);
-      font-size: 1.15rem;
-      font-weight: 800;
-    }
-    .inline {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
     }
     button {
       width: 100%;
@@ -170,12 +140,26 @@ PAGE_TEMPLATE = """
       color: var(--accent-dark);
       border: 1px solid rgba(31, 108, 92, 0.12);
     }
-    .profile-note {
-      margin-top: -8px;
-      margin-bottom: 18px;
-      color: var(--muted);
+    .steps {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0 22px;
+    }
+    .step {
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.72);
+    }
+    .step strong {
+      display: block;
+      margin-bottom: 4px;
       font-size: 0.92rem;
-      line-height: 1.55;
+    }
+    .step span {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
     }
     .error {
       background: #fde6e0;
@@ -262,26 +246,24 @@ PAGE_TEMPLATE = """
         {% if error %}
           <div class="error">{{ error }}</div>
         {% endif %}
-        <div class="helper">Balanced settings usually work best for portraits, product shots, and compressed images.</div>
+        <div class="helper">Upload a photo and the app will automatically clean noise, reduce blur, and enhance clarity.</div>
+        <div class="steps">
+          <div class="step">
+            <strong>1. Upload</strong>
+            <span>Add a JPG or PNG image from your device.</span>
+          </div>
+          <div class="step">
+            <strong>2. Enhance</strong>
+            <span>The image is processed with a fixed restoration preset tuned for general-quality improvement.</span>
+          </div>
+          <div class="step">
+            <strong>3. Download</strong>
+            <span>Preview the refined result and save it as a PNG.</span>
+          </div>
+        </div>
         <div class="field">
           <label for="file">Image</label>
           <input id="file" type="file" name="file" accept=".png,.jpg,.jpeg" required>
-        </div>
-        <div class="field">
-          <label for="upscale_mode">Enhancement profile</label>
-          <select id="upscale_mode" name="upscale_mode">
-            {% for label in upscale_options.keys() %}
-              <option value="{{ label }}" {% if form_values.upscale_mode == label %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="profile-note">{{ selected_profile_description }}</div>
-        <div class="field">
-          <div class="inline">
-            <label for="target_width">Output width</label>
-            <strong class="range-value">{{ form_values.target_width }}px</strong>
-          </div>
-          <input id="target_width" type="range" name="target_width" min="1200" max="4000" step="200" value="{{ form_values.target_width }}" oninput="this.previousElementSibling.querySelector('strong').textContent = this.value + 'px'">
         </div>
         <button type="submit">Enhance Image</button>
       </form>
@@ -320,16 +302,8 @@ PAGE_TEMPLATE = """
 """
 
 
-def build_deep_image_payload(
-    profile_name: str,
-    target_width: int,
-) -> dict:
-    profile = UPSCALE_OPTIONS[profile_name]
-    enhancements = list(profile["enhancements"])
-    return {
-        "width": target_width,
-        "enhancements": enhancements,
-    }
+def build_deep_image_payload() -> dict:
+    return dict(DEFAULT_PARAMETERS)
 
 
 def poll_deep_image_result(job_id: str) -> str:
@@ -350,27 +324,24 @@ def poll_deep_image_result(job_id: str) -> str:
 def restore_image_with_deep_image(
     image_bytes: bytes,
     file_name: str,
-    profile_name: str,
-    target_width: int,
 ) -> bytes:
     if not DEEP_IMAGE_API_KEY:
         raise RuntimeError("DEEP_IMAGE_API_KEY is missing. Set it in your environment.")
 
-    parameters = build_deep_image_payload(
-        profile_name=profile_name,
-        target_width=target_width,
-    )
-    headers = {
-        "x-api-key": DEEP_IMAGE_API_KEY,
-        "content-type": "application/json",
+    parameters = build_deep_image_payload()
+    headers = {"x-api-key": DEEP_IMAGE_API_KEY}
+    files = {
+        "file": (file_name, image_bytes),
     }
-    payload = dict(parameters)
-    payload["url"] = f"data:image/png;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+    data = {
+        "parameters": json.dumps(parameters),
+    }
 
     response = requests.post(
         DEEP_IMAGE_API_URL,
         headers=headers,
-        data=json.dumps(payload),
+        files=files,
+        data=data,
         timeout=120,
     )
     response.raise_for_status()
@@ -394,22 +365,12 @@ def image_bytes_to_base64(image_bytes: bytes) -> str:
 
 
 def render_page(error: str = "", input_image: str = "", result_image: str = "", form_values: dict | None = None):
-    values = {
-        "upscale_mode": "Balanced",
-        "target_width": 2000,
-    }
-    if form_values:
-        values.update(form_values)
-
     return render_template_string(
         PAGE_TEMPLATE,
         api_key_loaded=bool(DEEP_IMAGE_API_KEY),
         error=error,
         input_image=input_image,
         result_image=result_image,
-        upscale_options=UPSCALE_OPTIONS,
-        form_values=values,
-        selected_profile_description=UPSCALE_OPTIONS[values["upscale_mode"]]["description"],
     )
 
 
@@ -422,13 +383,6 @@ def index():
     if uploaded_file is None or not uploaded_file.filename:
         return render_page(error="Please choose an image file before submitting.")
 
-    upscale_mode = request.form.get("upscale_mode", "Balanced")
-    target_width = int(request.form.get("target_width", "2000"))
-    form_values = {
-        "upscale_mode": upscale_mode,
-        "target_width": target_width,
-    }
-
     input_bytes = uploaded_file.read()
     input_base64 = image_bytes_to_base64(input_bytes)
 
@@ -436,17 +390,15 @@ def index():
         result_bytes = restore_image_with_deep_image(
             image_bytes=input_bytes,
             file_name=uploaded_file.filename,
-            profile_name=upscale_mode,
-            target_width=target_width,
         )
     except requests.HTTPError as exc:
         details = exc.response.text if exc.response is not None else str(exc)
-        return render_page(error=f"Image processing request failed.\n\n{details}", input_image=input_base64, form_values=form_values)
+        return render_page(error=f"Image processing request failed.\n\n{details}", input_image=input_base64)
     except Exception as exc:
-        return render_page(error=str(exc), input_image=input_base64, form_values=form_values)
+        return render_page(error=str(exc), input_image=input_base64)
 
     result_base64 = base64.b64encode(result_bytes).decode("utf-8")
-    return render_page(input_image=input_base64, result_image=result_base64, form_values=form_values)
+    return render_page(input_image=input_base64, result_image=result_base64)
 
 
 if __name__ == "__main__":
