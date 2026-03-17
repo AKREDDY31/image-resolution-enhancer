@@ -34,97 +34,103 @@ PAGE_TEMPLATE = """
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Image Restoration</title>
+  <title>Image Restoration Studio</title>
   <style>
     :root {
-      --bg: #f4efe3;
-      --panel: #fffaf2;
-      --ink: #1f1b16;
-      --muted: #736658;
-      --accent: #d55d3a;
-      --accent-dark: #8f341f;
-      --line: #e7d7c5;
+      --bg: #f5f1ea;
+      --panel: rgba(255, 252, 247, 0.88);
+      --panel-strong: #fffdf9;
+      --ink: #1d1713;
+      --muted: #6d6256;
+      --accent: #1f6c5c;
+      --accent-soft: #dff0e7;
+      --accent-dark: #164e42;
+      --line: rgba(105, 88, 71, 0.14);
+      --shadow: 0 24px 70px rgba(44, 31, 20, 0.08);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: "Aptos", "Segoe UI", "Helvetica Neue", sans-serif;
       background:
-        radial-gradient(circle at top left, #f9d7b8 0, transparent 26%),
-        radial-gradient(circle at bottom right, #efd7b8 0, transparent 24%),
+        radial-gradient(circle at top left, rgba(143, 199, 180, 0.28) 0, transparent 24%),
+        radial-gradient(circle at top right, rgba(244, 210, 164, 0.26) 0, transparent 20%),
+        linear-gradient(180deg, #faf7f1 0%, #f4eee6 100%),
         var(--bg);
       color: var(--ink);
     }
     .shell {
-      max-width: 1120px;
+      max-width: 1180px;
       margin: 0 auto;
-      padding: 32px 20px 48px;
+      padding: 32px 20px 56px;
     }
     .hero {
-      margin-bottom: 24px;
-      padding: 28px;
+      margin-bottom: 26px;
+      padding: 34px;
       border: 1px solid var(--line);
-      background: linear-gradient(135deg, rgba(255,250,242,0.98), rgba(245,229,206,0.92));
-      border-radius: 24px;
-      box-shadow: 0 18px 60px rgba(93, 53, 31, 0.10);
-    }
-    .eyebrow {
-      display: inline-block;
-      margin-bottom: 10px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: #f3dfcc;
-      color: var(--accent-dark);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      background:
+        linear-gradient(135deg, rgba(255,253,249,0.95), rgba(242, 248, 245, 0.94)),
+        var(--panel-strong);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
     }
     h1 {
-      margin: 0 0 10px;
-      font-size: clamp(2.2rem, 5vw, 4.4rem);
-      line-height: 0.95;
+      margin: 0 0 12px;
+      max-width: 900px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.5rem, 5vw, 4.8rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
     }
     .sub {
       margin: 0;
-      max-width: 720px;
+      max-width: 640px;
       color: var(--muted);
-      font-size: 1.05rem;
+      font-size: 1.02rem;
+      line-height: 1.7;
     }
     .grid {
       display: grid;
-      grid-template-columns: 360px 1fr;
+      grid-template-columns: 370px 1fr;
       gap: 24px;
       align-items: start;
     }
     .card {
       border: 1px solid var(--line);
-      background: rgba(255, 250, 242, 0.94);
-      border-radius: 24px;
-      padding: 22px;
-      box-shadow: 0 12px 40px rgba(93, 53, 31, 0.08);
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: var(--shadow);
     }
     label {
       display: block;
-      margin-bottom: 8px;
-      font-size: 0.95rem;
+      margin-bottom: 9px;
+      font-size: 0.92rem;
       font-weight: 700;
+      letter-spacing: 0.01em;
     }
     .field {
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
     input[type="file"],
     select {
       width: 100%;
-      padding: 12px 14px;
-      border: 1px solid #d9c5ae;
-      border-radius: 14px;
-      background: white;
+      padding: 13px 14px;
+      border: 1px solid rgba(102, 85, 68, 0.18);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.86);
       color: var(--ink);
       font: inherit;
     }
     input[type="range"] {
       width: 100%;
       accent-color: var(--accent);
+    }
+    .range-value {
+      color: var(--accent-dark);
+      font-size: 1.15rem;
+      font-weight: 800;
     }
     .inline {
       display: flex;
@@ -142,25 +148,27 @@ PAGE_TEMPLATE = """
     button {
       width: 100%;
       border: 0;
-      border-radius: 16px;
-      padding: 14px 18px;
-      background: linear-gradient(135deg, var(--accent), #ef8b57);
+      border-radius: 18px;
+      padding: 15px 18px;
+      background: linear-gradient(135deg, var(--accent), #4e8d74);
       color: white;
       font: inherit;
       font-weight: 700;
+      letter-spacing: 0.01em;
       cursor: pointer;
+      box-shadow: 0 18px 36px rgba(31, 108, 92, 0.22);
     }
     button:hover { filter: brightness(0.98); }
-    .note, .error {
+    .helper, .error {
       margin-bottom: 18px;
-      padding: 12px 14px;
-      border-radius: 14px;
+      padding: 13px 15px;
+      border-radius: 16px;
       font-size: 0.95rem;
     }
-    .note {
-      background: #fff1dc;
-      color: #76461e;
-      border: 1px solid #efd1a7;
+    .helper {
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      border: 1px solid rgba(31, 108, 92, 0.12);
     }
     .error {
       background: #fde6e0;
@@ -175,27 +183,30 @@ PAGE_TEMPLATE = """
     }
     .preview {
       border: 1px solid var(--line);
-      border-radius: 20px;
+      border-radius: 22px;
       overflow: hidden;
       background: white;
+      box-shadow: 0 12px 36px rgba(44, 31, 20, 0.06);
     }
     .preview img {
       display: block;
       width: 100%;
       height: auto;
+      background: #f7f4ef;
     }
     .preview .meta {
-      padding: 14px 16px;
+      padding: 16px 18px;
       border-top: 1px solid var(--line);
     }
     .preview h2 {
       margin: 0 0 6px;
-      font-size: 1rem;
+      font-size: 1.02rem;
     }
     .preview p {
       margin: 0;
       color: var(--muted);
       font-size: 0.92rem;
+      line-height: 1.55;
     }
     .download {
       display: inline-block;
@@ -203,6 +214,24 @@ PAGE_TEMPLATE = """
       color: var(--accent-dark);
       text-decoration: none;
       font-weight: 700;
+    }
+    .empty-state {
+      min-height: 420px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed rgba(31, 108, 92, 0.18);
+      border-radius: 22px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.82), rgba(241,247,244,0.9));
+      color: var(--muted);
+      text-align: center;
+      padding: 26px;
+    }
+    .empty-state strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 1.1rem;
     }
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
@@ -213,28 +242,26 @@ PAGE_TEMPLATE = """
 <body>
   <main class="shell">
     <section class="hero">
-      <div class="eyebrow">Claid.ai Powered</div>
-      <h1>Restore images without running heavy local models.</h1>
+      <h1>Image Restoration Studio</h1>
       <p class="sub">
-        Upload a photo, choose the enhancement style, and let Claid handle restoration and upscaling.
+        Upload an image, refine the restoration settings, and generate a cleaner, sharper result in seconds.
       </p>
     </section>
     <section class="grid">
       <form class="card" method="post" enctype="multipart/form-data">
         {% if not api_key_loaded %}
-          <div class="error">CLAID_API_KEY is not configured on the server.</div>
-        {% else %}
-          <div class="note">CLAID_API_KEY is loaded from environment variables.</div>
+          <div class="error">The service is not configured correctly right now. Please try again shortly.</div>
         {% endif %}
         {% if error %}
           <div class="error">{{ error }}</div>
         {% endif %}
+        <div class="helper">Balanced settings usually work best for portraits, product shots, and compressed images.</div>
         <div class="field">
-          <label for="file">Upload image</label>
+          <label for="file">Image</label>
           <input id="file" type="file" name="file" accept=".png,.jpg,.jpeg" required>
         </div>
         <div class="field">
-          <label for="upscale_mode">Upscale model</label>
+          <label for="upscale_mode">Enhancement profile</label>
           <select id="upscale_mode" name="upscale_mode">
             {% for label, value in upscale_options.items() %}
               <option value="{{ value }}" {% if form_values.upscale_mode == value %}selected{% endif %}>{{ label }}</option>
@@ -244,12 +271,12 @@ PAGE_TEMPLATE = """
         <div class="field">
           <div class="inline">
             <label for="scale_percent">Scale</label>
-            <strong>{{ form_values.scale_percent }}%</strong>
+            <strong class="range-value">{{ form_values.scale_percent }}%</strong>
           </div>
           <input id="scale_percent" type="range" name="scale_percent" min="100" max="400" step="50" value="{{ form_values.scale_percent }}" oninput="this.previousElementSibling.querySelector('strong').textContent = this.value + '%'">
         </div>
         <div class="field">
-          <label for="decompress_mode">JPEG artifact removal</label>
+          <label for="decompress_mode">Compression cleanup</label>
           <select id="decompress_mode" name="decompress_mode">
             {% for label, value in decompress_options.items() %}
               <option value="{{ value }}" {% if form_values.decompress_mode == value %}selected{% endif %}>{{ label }}</option>
@@ -258,7 +285,7 @@ PAGE_TEMPLATE = """
         </div>
         <div class="field checkbox">
           <input id="polish_enabled" type="checkbox" name="polish_enabled" value="1" {% if form_values.polish_enabled %}checked{% endif %}>
-          <label for="polish_enabled" style="margin: 0;">Polish fine details</label>
+          <label for="polish_enabled" style="margin: 0;">Refine fine details</label>
         </div>
         <button type="submit">Enhance Image</button>
       </form>
@@ -269,20 +296,25 @@ PAGE_TEMPLATE = """
               <img src="data:image/png;base64,{{ input_image }}" alt="Original image">
               <div class="meta">
                 <h2>Original</h2>
-                <p>Uploaded image before Claid restoration.</p>
+                <p>Your uploaded image before enhancement.</p>
               </div>
             </article>
             <article class="preview">
               <img src="data:image/png;base64,{{ result_image }}" alt="Enhanced image">
               <div class="meta">
                 <h2>Enhanced</h2>
-                <p>Restored using Claid.ai API.</p>
+                <p>The restored version is ready to preview and download.</p>
                 <a class="download" href="data:image/png;base64,{{ result_image }}" download="enhanced_image.png">Download enhanced image</a>
               </div>
             </article>
           </div>
         {% else %}
-          <div class="note">Upload an image on the left to generate a restored version here.</div>
+          <div class="empty-state">
+            <div>
+              <strong>Result preview appears here</strong>
+              Upload an image and run the enhancement to compare the original and restored versions side by side.
+            </div>
+          </div>
         {% endif %}
       </section>
     </section>

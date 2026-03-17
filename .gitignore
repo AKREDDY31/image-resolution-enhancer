@@ -1,6 +1,7 @@
 __pycache__/
 .env
 .vercel/
+.vercel-global/
 temp/
 models/
 gfpgan/weights/
